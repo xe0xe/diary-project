@@ -33,7 +33,7 @@ def login():
         user = db_sess.query(User).filter(User.email == form.email.data).first()
         if user and user.check_password(form.password.data):
             login_user(user, remember=form.remember_me.data)
-            return redirect("/")
+            return redirect("/success")
         return render_template('login.html',
                                message="Неправильный логин или пароль",
                                form=form)
@@ -58,7 +58,7 @@ def reqister():
             name=form.name.data,
             email=form.email.data
         )
-        user.hashed_password(form.password.data)
+        user.set_password(form.password.data)
         db_sess.add(user)
         db_sess.commit()
         return redirect('/login')
@@ -66,7 +66,7 @@ def reqister():
 
 @app.route('/success')
 def success():
-    return 'OK'
+    return render_template('index.html', title='Главная')
 
 @app.route('/addjob', methods=['GET', 'POST'])
 def addjob():
