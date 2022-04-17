@@ -17,19 +17,19 @@ db_session.global_init("db/blogs.db")
 login_manager = LoginManager()
 login_manager.init_app(app)
 
-user = User()
-user.name = "Пользователь 1"
-user.about = "биография пользователя 1"
-user.email = "email@email.ru"
-db_sess = db_session.create_session()
-db_sess.add(user)
-db_sess.commit()
-
-user = db_sess.query(User).filter(User.id == 2).first()
-news = News(title="Личная запись", content="Эта запись личная",
-            is_private=False)
-user.news.append(news)
-db_sess.commit()
+# user = User()
+# user.name = "Пользователь 1"
+# user.about = "биография пользователя 1"
+# user.email = "email@email.ru"
+# db_sess = db_session.create_session()
+# db_sess.add(user)
+# db_sess.commit()
+#
+# user = db_sess.query(User).filter(User.id == 2).first()
+# news = News(title="Личная запись", content="Эта запись личная",
+#             is_private=False)
+# user.news.append(news)
+# db_sess.commit()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -38,7 +38,15 @@ def load_user(user_id):
 
 @app.route('/')
 def index():
-     return render_template('base.html', title='Главная')
+    return render_template('base.html', title='Главная')
+
+
+# @app.route("/")
+# def index():
+#     db_sess = db_session.create_session()
+#     news = db_sess.query(News).filter(News.is_private != True)
+#     return render_template("blog.html", news=news)
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -84,10 +92,12 @@ def success():
 
 @app.route('/atblog')
 def atblog():
-    return render_template('blog.html', title='Главная')
+    db_sess = db_session.create_session()
+    news = db_sess.query(News).filter(News.is_private != True)
+    return render_template('blog.html', news=news)
 
-@app.route('/addjob', methods=['GET', 'POST'])
-def addjob():
+@app.route('/addcost', methods=['GET', 'POST'])
+def addcost():
     form = AddJob()
     if form.validate_on_submit():
         db_sess = db_session.create_session()
