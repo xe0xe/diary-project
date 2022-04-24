@@ -1,14 +1,14 @@
-from flask import Flask, render_template, redirect
-from data import db_session, jobs_api
-from flask_login import LoginManager, login_user, login_required, logout_user, user_logged_out
+from flask import Flask, render_template, redirect, request
+from data import db_session
+from flask_login import LoginManager, login_user, login_required, logout_user, user_logged_out, current_user
 from data.users import User
-from data.jobs import Jobs
-from data.news import News
+from data.charges import Charge
 from login_form import LoginForm
 from register_form import RegisterForm
-from add_job import AddJob
+from panel_form import PanelForm
+from charge_form import ChargeForm
 from flask_restful import reqparse, abort, Api, Resource
-import news_resources, users_resource
+import datetime
 
 
 app = Flask(__name__)
@@ -17,19 +17,7 @@ db_session.global_init("db/blogs.db")
 login_manager = LoginManager()
 login_manager.init_app(app)
 
-# user = User()
-# user.name = "Пользователь 1"
-# user.about = "биография пользователя 1"
-# user.email = "email@email.ru"
-# db_sess = db_session.create_session()
-# db_sess.add(user)
-# db_sess.commit()
-#
-# user = db_sess.query(User).filter(User.id == 2).first()
-# news = News(title="Личная запись", content="Эта запись личная",
-#             is_private=False)
-# user.news.append(news)
-# db_sess.commit()
+month = int(str(datetime.date.today()).split('-')[1])
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -39,13 +27,6 @@ def load_user(user_id):
 @app.route('/')
 def index():
     return render_template('index.html', title='Главная')
-
-
-# @app.route("/")
-# def index():
-#     db_sess = db_session.create_session()
-#     news = db_sess.query(News).filter(News.is_private != True)
-#     return render_template("blog.html", news=news)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -86,34 +67,82 @@ def reqister():
         return redirect('/login')
     return render_template('register.html', title='Регистрация', form=form)
 
-@app.route('/success')
+@app.route('/success', methods=['GET', 'POST'])
 def success():
-    return render_template('blog.html', title='Главная')
-
-@app.route('/atblog')
-def atblog():
+    form = PanelForm()
     db_sess = db_session.create_session()
-    news = db_sess.query(News).filter(News.is_private != True)
-    return render_template('blog.html', news=news)
+    charges = db_sess.query(Charge).filter((Charge.user == current_user), (Charge.created_date == month))
+    return render_template('diary.html', title='Главная', form=form, charges=charges)
 
-@app.route('/addcost', methods=['GET', 'POST'])
-def addcost():
-    form = AddJob()
+@app.route('/next')
+def next():
+    global month
+    month += 1
+    form = PanelForm()
+    db_sess = db_session.create_session()
+    charges = db_sess.query(Charge).filter((Charge.user == current_user), (Charge.created_date == month))
+    return render_template('diary.html', form=form, charge=charges)
+
+@app.route('/back')
+def back():
+    global month
+    month -= 1
+    form = PanelForm()
+    db_sess = db_session.create_session()
+    charges = db_sess.query(Charge).filter((Charge.user == current_user), (Charge.created_date == month))
+    return render_template('diary.html', form=form, charge=charges)
+
+@app.route('/charges',  methods=['GET', 'POST'])
+@login_required
+def add_charge():
+    form = ChargeForm()
     if form.validate_on_submit():
         db_sess = db_session.create_session()
-        job = Jobs(
-            collaborators=form.collaborators.data,
-            job=form.job.data,
-            work_size=form.work_size.data,
-            start_date=form.start_date.data,
-            end_date=form.end_date.data,
-            team_leader=form.team_leader.data
-        )
-        db_sess.add(job)
-        db_sess.commit()
-        return redirect("/")
-    return render_template('adding_job.html', title='Добавление работы', form=form)
+        if charge := db_sess.query(Charge).filter((Charge.user == current_user), (Charge.created_date == month)).first():
+            charge.content = float(charge.content) + float(form.content.data)
+            db_sess.merge(current_user)
+            db_sess.commit()
+        else:
+            charge = Charge()
+            charge.content = form.content.data
+            charge.created_date = form.created_date.data
+            current_user.charges.append(charge)
+            db_sess.merge(current_user)
+            db_sess.commit()
+        return redirect('/success')
+    return render_template('charge.html', title='Добавление расхода',
+                           form=form)
 
+@app.route('/news/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_news(id):
+    form = ChargeForm()
+    if request.method == "GET":
+        db_sess = db_session.create_session()
+        news = db_sess.query(Charge).filter(Charge.id == id,
+                                          Charge.user == current_user
+                                          ).first()
+        if news:
+            form.content.data = news.content
+            form.created_date.data = news.created_date
+        else:
+            abort(404)
+    if form.validate_on_submit():
+        db_sess = db_session.create_session()
+        news = db_sess.query(Charge).filter(Charge.id == id,
+                                          Charge.user == current_user
+                                          ).first()
+        if news:
+            news.content = form.content.data
+            news.created_date = form.created_date.data
+            db_sess.commit()
+            return redirect('/')
+        else:
+            abort(404)
+    return render_template('charge.html',
+                           title='Редактирование новости',
+                           form=form
+                           )
 
 @app.route('/logout')
 @login_required
@@ -122,10 +151,5 @@ def logout():
     return redirect("/")
 
 
-app.register_blueprint(jobs_api.blueprint)
-api = Api(app)
-api.add_resource(news_resources.NewsListResource, '/api/v2/news')
-api.add_resource(news_resources.NewsResource, '/api/v2/news/<int:news_id>')
-api.add_resource(users_resource.UsersListResource, '/api/v2/users')
-api.add_resource(users_resource.UsersResource, '/api/v2/users/<int:user_id>')
 app.run(port=8080, host='127.0.0.1')
+
