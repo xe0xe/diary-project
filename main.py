@@ -105,44 +105,13 @@ def add_charge():
         else:
             charge = Charge()
             charge.content = form.content.data
-            charge.created_date = form.created_date.data
+            charge.created_date = month
             current_user.charges.append(charge)
             db_sess.merge(current_user)
             db_sess.commit()
         return redirect('/success')
     return render_template('charge.html', title='Добавление расхода',
                            form=form)
-
-@app.route('/news/<int:id>', methods=['GET', 'POST'])
-@login_required
-def edit_news(id):
-    form = ChargeForm()
-    if request.method == "GET":
-        db_sess = db_session.create_session()
-        news = db_sess.query(Charge).filter(Charge.id == id,
-                                          Charge.user == current_user
-                                          ).first()
-        if news:
-            form.content.data = news.content
-            form.created_date.data = news.created_date
-        else:
-            abort(404)
-    if form.validate_on_submit():
-        db_sess = db_session.create_session()
-        news = db_sess.query(Charge).filter(Charge.id == id,
-                                          Charge.user == current_user
-                                          ).first()
-        if news:
-            news.content = form.content.data
-            news.created_date = form.created_date.data
-            db_sess.commit()
-            return redirect('/')
-        else:
-            abort(404)
-    return render_template('charge.html',
-                           title='Редактирование новости',
-                           form=form
-                           )
 
 @app.route('/logout')
 @login_required
